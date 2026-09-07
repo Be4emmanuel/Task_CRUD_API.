@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, status
-from models import TaskCreate, TaskResponse, TaskUpdate
 
+from models import TaskCreate, TaskResponse, TaskUpdate
+from datetime import datetime
 app = FastAPI(title="Task CRUD API")
 
 tasks = []
@@ -32,6 +33,7 @@ def create_task(task: TaskCreate):
     new_task = task.model_dump()
 
     new_task["id"] = next_task_id
+    new_task["created_at"] = datetime.now()
 
     tasks.append(new_task)
 
@@ -44,8 +46,24 @@ def create_task(task: TaskCreate):
          summary="Get all tasks",
          description="Retrieve a list of all tasks in the system"
 )
-def get_tasks():
-    return tasks
+def get_tasks(
+    completed: bool | None = None,
+    sort: str | None = None,
+    order: str = "asc"
+):
+    filtered_tasks = tasks.copy()
+
+    if completed is not None:
+        filtered_tasks = [task for task in filtered_tasks if task["completed"] == completed]
+
+        if sort in ["title", "created_at"]:
+            filtered_tasks = sorted(
+                filtered_tasks,
+                key=lambda x: x[sort],
+                reverse=(order == "desc")
+            )
+    return filtered_tasks
+
 
 @app.get("/tasks/{task_id}",
          response_model=TaskResponse,

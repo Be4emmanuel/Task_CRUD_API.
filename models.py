@@ -1,4 +1,7 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field
+
 
 class TaskBase(BaseModel):
     title: str = Field(
@@ -18,6 +21,7 @@ class TaskCreate(TaskBase):
 class TaskResponse(TaskBase):
     id: int
     completed: bool
+    created_at : datetime
 
 class TaskUpdate(TaskBase):
     title: str | None = Field(
