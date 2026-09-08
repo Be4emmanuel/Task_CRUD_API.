@@ -1,7 +1,10 @@
-from fastapi import FastAPI, HTTPException, status
+from datetime import datetime, timezone
+
+from fastapi import FastAPI, HTTPException, Request, status
+from pydantic import ValidationError
 
 from models import TaskCreate, TaskResponse, TaskUpdate
-from datetime import datetime
+
 app = FastAPI(title="Task CRUD API")
 
 tasks = []
@@ -26,14 +29,49 @@ def health_check():
     "/tasks",
     response_model=TaskResponse,
     status_code=status.HTTP_201_CREATED,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {"schema": TaskCreate.model_json_schema()},
+                "application/x-www-form-urlencoded": {
+                    "schema": TaskCreate.model_json_schema()
+                },
+            },
+        }
+    },
 )
-def create_task(task: TaskCreate):
+async def create_task(request: Request):
     global next_task_id
 
+    content_type = request.headers.get("content-type", "")
+    if content_type.startswith("application/json"):
+        try:
+            payload = await request.json()
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Request body contains invalid JSON",
+            ) from exc
+    elif content_type.startswith("application/x-www-form-urlencoded"):
+        payload = dict(await request.form())
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Use JSON or form-encoded task data",
+        )
+
+    try:
+        task = TaskCreate.model_validate(payload)
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=exc.errors(),
+        ) from exc
     new_task = task.model_dump()
 
     new_task["id"] = next_task_id
-    new_task["created_at"] = datetime.now()
+    new_task["created_at"] = datetime.now(timezone.utc)
 
     tasks.append(new_task)
 
@@ -56,12 +94,12 @@ def get_tasks(
     if completed is not None:
         filtered_tasks = [task for task in filtered_tasks if task["completed"] == completed]
 
-        if sort in ["title", "created_at"]:
-            filtered_tasks = sorted(
-                filtered_tasks,
-                key=lambda x: x[sort],
-                reverse=(order == "desc")
-            )
+    if sort in ["title", "created_at"]:
+        filtered_tasks = sorted(
+            filtered_tasks,
+            key=lambda x: x[sort],
+            reverse=(order == "desc")
+        )
     return filtered_tasks
 
 
