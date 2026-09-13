@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from models import TaskCreate, TaskResponse, TaskUpdate
